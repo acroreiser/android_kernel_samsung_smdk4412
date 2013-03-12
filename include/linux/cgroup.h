@@ -436,9 +436,6 @@ int cgroup_path(const struct cgroup *cgrp, char *buf, int buflen);
 
 int cgroup_task_count(const struct cgroup *cgrp);
 
-/* Return true if cgrp is a descendant of the task's cgroup */
-int cgroup_is_descendant(const struct cgroup *cgrp, struct task_struct *task);
-
 /*
  * When the subsys has to access css and may add permanent refcnt to css,
  * it should take care of racy conditions with rmdir(). Following set of
