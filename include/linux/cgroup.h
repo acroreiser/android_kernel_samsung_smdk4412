@@ -431,6 +431,7 @@ int cgroup_add_files(struct cgroup *cgrp,
 			int count);
 
 int cgroup_is_removed(const struct cgroup *cgrp);
+bool cgroup_is_descendant(struct cgroup *cgrp, struct cgroup *ancestor);
 
 int cgroup_path(const struct cgroup *cgrp, char *buf, int buflen);
 
