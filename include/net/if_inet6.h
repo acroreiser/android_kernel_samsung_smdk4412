@@ -72,6 +72,7 @@ struct inet6_ifaddr {
 	int			regen_count;
 #endif
 	struct rcu_head		rcu;
+	struct in6_addr		peer_addr;
 };
 
 struct ip6_sf_socklist {
