@@ -386,4 +386,10 @@ static inline void __enable_cache_foz(int enable)
 #define enable_cache_foz()	do { } while (0)
 #define disable_cache_foz()	do { } while (0)
 #endif
+
+int set_memory_ro(unsigned long addr, int numpages);
+int set_memory_rw(unsigned long addr, int numpages);
+int set_memory_x(unsigned long addr, int numpages);
+int set_memory_nx(unsigned long addr, int numpages);
+
 #endif
