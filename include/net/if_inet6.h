@@ -50,8 +50,8 @@ struct inet6_ifaddr {
 
 	int			state;
 
+	__u32			flags;
 	__u8			probes;
-	__u8			flags;
 
 	__u16			scope;
 
