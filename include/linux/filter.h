@@ -180,25 +180,35 @@ static inline int sk_filter(struct sock *sk, struct sk_buff *skb)
 	return sk_filter_trim_cap(sk, skb, 1);
 }
 
+static inline unsigned int sk_filter_size(unsigned int proglen)
+{
+		return max(sizeof(struct sk_filter),
+			offsetof(struct sk_filter, insns[proglen]));
+}
+
 #define sk_filter_proglen(fprog)			\
 		(fprog->len * sizeof(fprog->filter[0]))
 
-extern unsigned int sk_run_filter(const struct sk_buff *skb,
-				  const struct sock_filter *filter);
+unsigned int sk_run_filter(const struct sk_buff *skb,
+			   const struct sock_filter *filter);
 
-extern int sk_unattached_filter_create(struct sk_filter **pfp,
-				       struct sock_fprog *fprog);
-extern void sk_unattached_filter_destroy(struct sk_filter *fp);
+int sk_unattached_filter_create(struct sk_filter **pfp,
+				struct sock_fprog *fprog);
+void sk_unattached_filter_destroy(struct sk_filter *fp);
 
-extern int sk_attach_filter(struct sock_fprog *fprog, struct sock *sk);
-extern int sk_detach_filter(struct sock *sk);
+int sk_attach_filter(struct sock_fprog *fprog, struct sock *sk);
+int sk_detach_filter(struct sock *sk);
 
-extern int sk_chk_filter(struct sock_filter *filter, unsigned int flen);
-extern int sk_get_filter(struct sock *sk, struct sock_filter __user *filter, unsigned len);
+int sk_chk_filter(struct sock_filter *filter, unsigned int flen);
+int sk_get_filter(struct sock *sk, struct sock_filter __user *filter,
+		  unsigned int len);
+
+void sk_filter_charge(struct sock *sk, struct sk_filter *fp);
+void sk_filter_uncharge(struct sock *sk, struct sk_filter *fp);
 
 #ifdef CONFIG_BPF_JIT
-extern void bpf_jit_compile(struct sk_filter *fp);
-extern void bpf_jit_free(struct sk_filter *fp);
+void bpf_jit_compile(struct sk_filter *fp);
+void bpf_jit_free(struct sk_filter *fp);
 #define SK_RUN_FILTER(FILTER, SKB) (*FILTER->bpf_func)(SKB, FILTER->insns)
 #else
 static inline void bpf_jit_compile(struct sk_filter *fp)
