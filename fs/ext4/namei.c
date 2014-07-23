@@ -2589,7 +2589,6 @@ const struct inode_operations ext4_dir_inode_operations = {
 	.mkdir		= ext4_mkdir,
 	.rmdir		= ext4_rmdir,
 	.mknod		= ext4_mknod,
-	.rename		= ext4_rename,
 	.rename2	= ext4_rename2,
 	.setattr	= ext4_setattr,
 #ifdef CONFIG_EXT4_FS_XATTR
