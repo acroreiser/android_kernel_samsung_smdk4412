@@ -131,8 +131,8 @@ struct ppp {
 	struct sk_buff_head mrq;	/* MP: receive reconstruction queue */
 #endif /* CONFIG_PPP_MULTILINK */
 #ifdef CONFIG_PPP_FILTER
-	struct sk_filter *pass_filter;	/* filter for packets to pass */
-	struct sk_filter *active_filter;/* filter for pkts to reset idle */
+	struct bpf_prog *pass_filter;	/* filter for packets to pass */
+	struct bpf_prog *active_filter; /* filter for pkts to reset idle */
 #endif /* CONFIG_PPP_FILTER */
 	struct net	*ppp_net;	/* the net we belong to */
 };
@@ -750,10 +750,15 @@ static long ppp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			};
 
 			ppp_lock(ppp);
-			if (ppp->pass_filter)
-				sk_unattached_filter_destroy(ppp->pass_filter);
-			err = sk_unattached_filter_create(&ppp->pass_filter,
-							  &fprog);
+			if (ppp->pass_filter) {
+				bpf_prog_destroy(ppp->pass_filter);
+				ppp->pass_filter = NULL;
+			}
+			if (fprog.filter != NULL)
+				err = bpf_prog_create(&ppp->pass_filter,
+						      &fprog);
+			else
+				err = 0;
 			kfree(code);
 			ppp_unlock(ppp);
 		}
@@ -771,10 +776,15 @@ static long ppp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			};
 
 			ppp_lock(ppp);
-			if (ppp->active_filter)
-				sk_unattached_filter_destroy(ppp->active_filter);
-			err = sk_unattached_filter_create(&ppp->active_filter,
-							  &fprog);
+			if (ppp->active_filter) {
+				bpf_prog_destroy(ppp->active_filter);
+				ppp->active_filter = NULL;
+			}
+			if (fprog.filter != NULL)
+				err = bpf_prog_create(&ppp->active_filter,
+						      &fprog);
+			else
+				err = 0;
 			kfree(code);
 			ppp_unlock(ppp);
 		}
@@ -1151,7 +1161,7 @@ ppp_send_frame(struct ppp *ppp, struct sk_buff *skb)
 		   a four-byte PPP header on each packet */
 		*skb_push(skb, 2) = 1;
 		if (ppp->pass_filter &&
-		    SK_RUN_FILTER(ppp->pass_filter, skb) == 0) {
+		    BPF_PROG_RUN(ppp->pass_filter, skb) == 0) {
 			if (ppp->debug & 1)
 				netdev_printk(KERN_DEBUG, ppp->dev,
 					      "PPP: outbound frame "
@@ -1161,7 +1171,7 @@ ppp_send_frame(struct ppp *ppp, struct sk_buff *skb)
 		}
 		/* if this packet passes the active filter, record the time */
 		if (!(ppp->active_filter &&
-		      SK_RUN_FILTER(ppp->active_filter, skb) == 0))
+		      BPF_PROG_RUN(ppp->active_filter, skb) == 0))
 			ppp->last_xmit = jiffies;
 		skb_pull(skb, 2);
 #else
@@ -1786,7 +1796,7 @@ ppp_receive_nonmp_frame(struct ppp *ppp, struct sk_buff *skb)
 
 			*skb_push(skb, 2) = 0;
 			if (ppp->pass_filter &&
-			    SK_RUN_FILTER(ppp->pass_filter, skb) == 0) {
+			    BPF_PROG_RUN(ppp->pass_filter, skb) == 0) {
 				if (ppp->debug & 1)
 					netdev_printk(KERN_DEBUG, ppp->dev,
 						      "PPP: inbound frame "
@@ -1795,7 +1805,7 @@ ppp_receive_nonmp_frame(struct ppp *ppp, struct sk_buff *skb)
 				return;
 			}
 			if (!(ppp->active_filter &&
-			      SK_RUN_FILTER(ppp->active_filter, skb) == 0))
+			      BPF_PROG_RUN(ppp->active_filter, skb) == 0))
 				ppp->last_recv = jiffies;
 			__skb_pull(skb, 2);
 		} else
@@ -2777,12 +2787,12 @@ static void ppp_destroy_interface(struct ppp *ppp)
 #endif /* CONFIG_PPP_MULTILINK */
 #ifdef CONFIG_PPP_FILTER
 	if (ppp->pass_filter) {
-		sk_unattached_filter_destroy(ppp->pass_filter);
+		bpf_prog_destroy(ppp->pass_filter);
 		ppp->pass_filter = NULL;
 	}
 
 	if (ppp->active_filter) {
-		sk_unattached_filter_destroy(ppp->active_filter);
+		bpf_prog_destroy(ppp->active_filter);
 		ppp->active_filter = NULL;
 	}
 #endif /* CONFIG_PPP_FILTER */
