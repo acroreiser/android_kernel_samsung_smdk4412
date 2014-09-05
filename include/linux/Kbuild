@@ -75,6 +75,7 @@ header-y += binfmts.h
 header-y += blk_types.h
 header-y += blkpg.h
 header-y += blktrace_api.h
+header-y += bpf.h
 header-y += bpqether.h
 header-y += bsg.h
 header-y += can.h
