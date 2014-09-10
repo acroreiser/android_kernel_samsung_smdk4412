@@ -5,6 +5,7 @@
 #ifndef __LINUX_FILTER_H__
 #define __LINUX_FILTER_H__
 
+#include <stdarg.h>
 #include <linux/compiler.h>
 #include <linux/types.h>
 
@@ -141,6 +142,8 @@ struct sock_fprog {	/* Required for SO_ATTACH_FILTER. */
 
 #ifdef __KERNEL__
 #include <linux/skbuff.h>
+#include <linux/linkage.h>
+#include <linux/printk.h>
 #include <linux/workqueue.h>
 #include <asm/cacheflush.h>
 #include <uapi/linux/bpf.h>
@@ -500,14 +503,6 @@ struct bpf_prog *bpf_prog_realloc(struct bpf_prog *fp_old, unsigned int size,
 				  gfp_t gfp_extra_flags);
 void __bpf_prog_free(struct bpf_prog *fp);
 
-typedef void (*bpf_jit_fill_hole_t)(void *area, unsigned int size);
-
-struct bpf_binary_header *
-bpf_jit_binary_alloc(unsigned int proglen, u8 **image_ptr,
-		     unsigned int alignment,
-		     bpf_jit_fill_hole_t bpf_fill_ill_insns);
-void bpf_jit_binary_free(struct bpf_binary_header *hdr);
-
 static inline void bpf_prog_unlock_free(struct bpf_prog *fp)
 {
 	bpf_prog_unlock_ro(fp);
@@ -529,6 +524,38 @@ void sk_filter_uncharge(struct sock *sk, struct sk_filter *fp);
 
 u64 __bpf_call_base(u64 r1, u64 r2, u64 r3, u64 r4, u64 r5);
 void bpf_int_jit_compile(struct bpf_prog *fp);
+
+#ifdef CONFIG_BPF_JIT
+typedef void (*bpf_jit_fill_hole_t)(void *area, unsigned int size);
+
+struct bpf_binary_header *
+bpf_jit_binary_alloc(unsigned int proglen, u8 **image_ptr,
+		     unsigned int alignment,
+		     bpf_jit_fill_hole_t bpf_fill_ill_insns);
+void bpf_jit_binary_free(struct bpf_binary_header *hdr);
+
+void bpf_jit_compile(struct bpf_prog *fp);
+void bpf_jit_free(struct bpf_prog *fp);
+
+static inline void bpf_jit_dump(unsigned int flen, unsigned int proglen,
+				u32 pass, void *image)
+{
+	pr_err("flen=%u proglen=%u pass=%u image=%pK\n",
+	       flen, proglen, pass, image);
+	if (image)
+		print_hex_dump(KERN_ERR, "JIT code: ", DUMP_PREFIX_OFFSET,
+			       16, 1, image, proglen, false);
+}
+#else
+static inline void bpf_jit_compile(struct bpf_prog *fp)
+{
+}
+
+static inline void bpf_jit_free(struct bpf_prog *fp)
+{
+	bpf_prog_unlock_free(fp);
+}
+#endif /* CONFIG_BPF_JIT */
 
 #define BPF_ANC		BIT(15)
 
@@ -577,22 +604,10 @@ static inline void *bpf_load_pointer(const struct sk_buff *skb, int k,
 	return bpf_internal_load_pointer_neg_helper(skb, k, size);
 }
 
-#ifdef CONFIG_BPF_JIT
-void bpf_jit_compile(struct bpf_prog *fp);
-void bpf_jit_free(struct bpf_prog *fp);
-#else
-#include <linux/slab.h>
-
-static inline void bpf_jit_compile(struct bpf_prog *fp)
+static inline int bpf_tell_extensions(void)
 {
+	return SKF_AD_MAX;
 }
-
-static inline void bpf_jit_free(struct bpf_prog *fp)
-{
-	bpf_prog_unlock_free(fp);
-}
-#endif /* CONFIG_BPF_JIT */
-
 
 #endif /* __KERNEL__ */
 
