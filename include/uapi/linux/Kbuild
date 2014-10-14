@@ -21,5 +21,6 @@ header-y += netfilter_ipv6/
 header-y += usb/
 header-y += wimax/
 header-y += bpf.h
+header-y += bpf_common.h
 
 genhdr-y += version.h

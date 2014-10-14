@@ -8,6 +8,7 @@
 #define _UAPI__LINUX_BPF_H__
 
 #include <linux/types.h>
+#include <uapi/linux/bpf_common.h>
 
 /* Extended instruction set based on top of classic BPF */
 
