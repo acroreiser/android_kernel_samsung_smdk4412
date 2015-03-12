@@ -170,7 +170,7 @@ void __inet_twsk_hashdance(struct inet_timewait_sock *tw, struct sock *sk,
 }
 EXPORT_SYMBOL_GPL(__inet_twsk_hashdance);
 
-struct inet_timewait_sock *inet_twsk_alloc(const struct sock *sk, const int state)
+struct inet_timewait_sock *inet_twsk_alloc(struct sock *sk, const int state)
 {
 	struct inet_timewait_sock *tw =
 		kmem_cache_alloc(sk->sk_prot_creator->twsk_prot->twsk_slab,
@@ -196,6 +196,7 @@ struct inet_timewait_sock *inet_twsk_alloc(const struct sock *sk, const int stat
 		tw->tw_ipv6only	    = 0;
 		tw->tw_transparent  = inet->transparent;
 		tw->tw_prot	    = sk->sk_prot_creator;
+		atomic64_set(&tw->tw_cookie, atomic64_read(&sk->sk_cookie));
 		twsk_net_set(tw, hold_net(sock_net(sk)));
 		/*
 		 * Because we use RCU lookups, we should not set tw_refcnt
