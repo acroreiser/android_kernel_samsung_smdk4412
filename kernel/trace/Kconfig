@@ -388,6 +388,14 @@ config KPROBE_EVENT
 	  This option is also required by perf-probe subcommand of perf tools.
 	  If you want to use perf tools, this option is strongly recommended.
 
+config BPF_EVENTS
+	depends on BPF_SYSCALL
+	depends on KPROBE_EVENT
+	bool
+	default y
+	help
+	  This allows the user to attach BPF programs to kprobe events.
+
 config DYNAMIC_FTRACE
 	bool "enable/disable function tracing dynamically"
 	depends on FUNCTION_TRACER
