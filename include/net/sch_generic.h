@@ -221,7 +221,7 @@ struct tcf_proto {
 struct qdisc_skb_cb {
 	unsigned int		pkt_len;
 	u16			bond_queue_mapping;
-	u16			_pad;
+	u16			tc_classid;
 	unsigned char		data[20];
 };
 
