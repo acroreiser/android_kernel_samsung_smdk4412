@@ -936,7 +936,7 @@ void bpf_jit_compile(struct bpf_prog *fp)
 		if (ctx.imm_count)
 			kfree(ctx.imms);
 #endif
-		bpf_jit_binary_free(header);
+		module_free(NULL, ctx.target);
 		goto out;
 	}
 	build_epilogue(&ctx);
