@@ -109,6 +109,8 @@ enum perf_sw_ids {
 	PERF_COUNT_SW_PAGE_FAULTS_MAJ		= 6,
 	PERF_COUNT_SW_ALIGNMENT_FAULTS		= 7,
 	PERF_COUNT_SW_EMULATION_FAULTS		= 8,
+	PERF_COUNT_SW_DUMMY                     = 9,
+	PERF_COUNT_SW_BPF_OUTPUT                = 10,
 
 	PERF_COUNT_SW_MAX,			/* non-ABI */
 };
@@ -1156,6 +1158,10 @@ extern void perf_prepare_sample(struct perf_event_header *header,
 extern int perf_event_overflow(struct perf_event *event,
 				 struct perf_sample_data *data,
 				 struct pt_regs *regs);
+
+extern void perf_event_output(struct perf_event *event,
+				struct perf_sample_data *data,
+				struct pt_regs *regs);
 
 static inline bool is_sampling_event(struct perf_event *event)
 {
