@@ -469,4 +469,17 @@ extern struct dst_entry *xfrm_lookup(struct net *net, struct dst_entry *dst_orig
 				     int flags);
 #endif
 
+
+static inline u32 dst_tclassid(const struct sk_buff *skb)
+{
+#ifdef CONFIG_IP_ROUTE_CLASSID
+       const struct dst_entry *dst;
+
+       dst = skb_dst(skb);
+       if (dst)
+               return dst->tclassid;
+#endif
+       return 0;
+}
+
 #endif /* _NET_DST_H */
