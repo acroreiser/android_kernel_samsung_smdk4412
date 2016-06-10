@@ -1756,6 +1756,8 @@ static inline void input_queue_tail_incr_save(struct softnet_data *sd,
 }
 
 DECLARE_PER_CPU_ALIGNED(struct softnet_data, softnet_data);
+#define XMIT_RECURSION_LIMIT   8
+DECLARE_PER_CPU(int, xmit_recursion);
 
 extern void __netif_schedule(struct Qdisc *q);
 
