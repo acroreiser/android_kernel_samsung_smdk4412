@@ -863,6 +863,7 @@ static void cgroup_diput(struct dentry *dentry, struct inode *inode)
 		synchronize_rcu();
 
 		mutex_lock(&cgroup_mutex);
+		cgroup_bpf_put(cgrp);
 		/*
 		 * Release the subsystem state objects.
 		 */
@@ -3959,6 +3960,9 @@ static long cgroup_create(struct cgroup *parent, struct dentry *dentry,
 	err = cgroup_populate_dir(cgrp);
 	/* If err < 0, we have a half-filled directory - oh well ;) */
 
+	if(parent)
+		cgroup_bpf_inherit(cgrp, parent);
+
 	mutex_unlock(&cgroup_mutex);
 	mutex_unlock(&cgrp->dentry->d_inode->i_mutex);
 
@@ -5247,6 +5251,19 @@ void cgroup_sk_free(struct cgroup *skcg)
 {
 	atomic_dec(&skcg->count);
 }
+
+#ifdef CONFIG_CGROUP_BPF
+void cgroup_bpf_update(struct cgroup *cgrp,
+                      struct bpf_prog *prog,
+                      enum bpf_attach_type type)
+{
+       struct cgroup *parent = cgroup_parent(cgrp);
+
+       mutex_lock(&cgroup_mutex);
+       __cgroup_bpf_update(cgrp, parent, prog, type);
+       mutex_unlock(&cgroup_mutex);
+}
+#endif /* CONFIG_CGROUP_BPF */
 
 #ifdef CONFIG_CGROUP_DEBUG
 static struct cgroup_subsys_state *debug_create(struct cgroup_subsys *ss,

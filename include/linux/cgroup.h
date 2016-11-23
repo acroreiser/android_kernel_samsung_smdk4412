@@ -16,6 +16,7 @@
 #include <linux/prio_heap.h>
 #include <linux/rwsem.h>
 #include <linux/idr.h>
+#include <linux/bpf-cgroup.h>
 
 #ifdef CONFIG_CGROUPS
 
@@ -243,6 +244,9 @@ struct cgroup {
 	/* List of events which userspace want to receive */
 	struct list_head event_list;
 	spinlock_t event_list_lock;
+
+	/* used to store eBPF programs */
+	struct cgroup_bpf bpf;
 };
 
 /*
