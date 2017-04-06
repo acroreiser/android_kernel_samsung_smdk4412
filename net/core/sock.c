@@ -127,6 +127,7 @@
 #include <linux/ipsec.h>
 #include <net/cls_cgroup.h>
 #include <net/netprio_cgroup.h>
+#include <linux/sock_diag.h>
 
 #include <linux/filter.h>
 
@@ -861,6 +862,7 @@ int sock_getsockopt(struct socket *sock, int level, int optname,
 
 	union {
 		int val;
+		u64 val64;
 		struct linger ling;
 		struct timeval tm;
 	} v;
@@ -1078,6 +1080,13 @@ int sock_getsockopt(struct socket *sock, int level, int optname,
 	case SO_LOCK_FILTER:
 		v.val = sock_flag(sk, SOCK_FILTER_LOCKED);
 		break;
+
+       case SO_COOKIE:
+               lv = sizeof(u64);
+               if (len < lv)
+                       return -EINVAL;
+               v.val64 = sock_gen_cookie(sk);
+               break;
 
 	default:
 		return -ENOPROTOOPT;
