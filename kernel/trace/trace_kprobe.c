@@ -1834,13 +1834,12 @@ static __kprobes void kprobe_perf_func(struct kprobe *kp,
 {
 	struct trace_probe *tp = container_of(kp, struct trace_probe, rp.kp);
 	struct ftrace_event_call *call = &tp->call;
-	struct bpf_prog *prog = call->prog;
 	struct kprobe_trace_entry_head *entry;
 	struct hlist_head *head;
 	int size, __size, dsize;
 	int rctx;
 
-	if (prog && !trace_call_bpf(prog, regs))
+	if (bpf_prog_array_valid(call) && !trace_call_bpf(call, regs))
 		return;
 
 	dsize = __get_data_size(tp, regs);
@@ -1870,13 +1869,12 @@ static __kprobes void kretprobe_perf_func(struct kretprobe_instance *ri,
 {
 	struct trace_probe *tp = container_of(ri->rp, struct trace_probe, rp);
 	struct ftrace_event_call *call = &tp->call;
-	struct bpf_prog *prog = call->prog;
 	struct kretprobe_trace_entry_head *entry;
 	struct hlist_head *head;
 	int size, __size, dsize;
 	int rctx;
 
-	if (prog && !trace_call_bpf(prog, regs))
+	if (bpf_prog_array_valid(call) && !trace_call_bpf(call, regs))
 		return;
 
 	dsize = __get_data_size(tp, regs);
