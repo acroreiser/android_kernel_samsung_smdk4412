@@ -743,6 +743,7 @@ unsigned short css_depth(struct cgroup_subsys_state *css);
 struct cgroup_subsys_state *cgroup_css_from_dir(struct file *f, int id);
 
 void cgroup_sk_alloc(struct cgroup **skcg);
+void cgroup_sk_clone(struct cgroup *skcg);
 void cgroup_sk_free(struct cgroup *skcg);
 #else /* !CONFIG_CGROUPS */
 
@@ -772,6 +773,7 @@ static inline int cgroup_attach_task_current_cg(struct task_struct *t)
 	return 0;
 }
 static inline void cgroup_sk_alloc(struct cgroup **skcg) {}
+static inline void cgroup_sk_clone(struct cgroup *skcg) {}
 static inline void cgroup_sk_free(struct cgroup *skcg) {}
 #endif /* !CONFIG_CGROUPS */
 
