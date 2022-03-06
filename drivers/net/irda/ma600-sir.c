@@ -174,7 +174,9 @@ static int ma600_change_speed(struct sir_dev *dev, unsigned speed)
 {
 	u8	byte;
 	
-	IRDA_DEBUG(2, "%s(), speed=%d (was %d)\n", __func__,
+	ma600_reset(dev);
+
+	IRDA_WARNING("%s(), speed=%d (was %d)\n", __func__,
 		speed, dev->speed);
 
 	/* dongle already reset, dongle and port at default speed (9600) */
@@ -188,7 +190,7 @@ static int ma600_change_speed(struct sir_dev *dev, unsigned speed)
 	sirdev_raw_write(dev, &byte, sizeof(byte));
 
 	/* Wait at least 10ms: fake wait_until_sent - 10 bits at 9600 baud*/
-	msleep(15);					/* old ma600 uses 15ms */
+	msleep(20);					/* old ma600 uses 15ms */
 
 #if 1
 	/* read-back of the control byte. ma600 is the first dongle driver
@@ -201,10 +203,10 @@ static int ma600_change_speed(struct sir_dev *dev, unsigned speed)
 		IRDA_WARNING("%s(): bad control byte read-back %02x != %02x\n",
 			     __func__, (unsigned) byte,
 			     (unsigned) get_control_byte(speed));
-		return -1;
+		ma600_reset(dev);
 	}
 	else
-		IRDA_DEBUG(2, "%s() control byte write read OK\n", __func__);
+		IRDA_WARNING("%s() control byte write read OK\n", __func__);
 #endif
 
 	/* Set DTR, Set RTS */
