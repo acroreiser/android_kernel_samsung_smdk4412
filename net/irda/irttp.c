@@ -402,8 +402,8 @@ struct tsap_cb *irttp_open_tsap(__u8 stsap_sel, int credit, notify_t *notify)
 	 * JeanII */
 	if ((stsap_sel != LSAP_ANY) &&
 	   ((stsap_sel < 0x01) || (stsap_sel >= 0x70))) {
-		IRDA_DEBUG(0, "%s(), invalid tsap!\n", __func__);
-		return NULL;
+		IRDA_WARNING("%s(), invalid tsap! Using any available.\n", __func__);
+               stsap_sel = LSAP_ANY;
 	}
 
 	self = kzalloc(sizeof(struct tsap_cb), GFP_ATOMIC);
