@@ -69,6 +69,7 @@
 #include <dhd_wlfc.h>
 #endif
 
+#undef WL11U
 #ifdef WL11U
 #if !defined(WL_ENABLE_P2P_IF) && !defined(WL_CFG80211_P2P_DEV_IF)
 #error You should enable 'WL_ENABLE_P2P_IF' or 'WL_CFG80211_P2P_DEV_IF' \
@@ -10309,6 +10310,7 @@ static s32 wl_event_handler(void *data)
 			break;
 		while ((e = wl_deq_event(cfg))) {
 			WL_DBG(("event type (%d), if idx: %d\n", e->etype, e->emsg.ifidx));
+#if (defined(WL_CFG80211_P2P_DEV_IF) || defined(WL_ENABLE_P2P_IF))
 			/* All P2P device address related events comes on primary interface since
 			 * there is no corresponding bsscfg for P2P interface. Map it to p2p0
 			 * interface.
@@ -10316,13 +10318,15 @@ static s32 wl_event_handler(void *data)
 			if ((wl_is_p2p_event(e) == TRUE) && (cfg->p2p_wdev)) {
 				cfgdev = bcmcfg_to_p2p_wdev(cfg);
 			} else {
+#endif /* BCMDONGLEHOST && (WL_CFG80211_P2P_DEV_IF || WL_ENABLE_P2P_IF) */
 				struct net_device *ndev = NULL;
 
 				ndev = dhd_idx2net((struct dhd_pub *)(cfg->pub), e->emsg.ifidx);
 				if (ndev)
 					cfgdev = ndev_to_wdev(ndev);
+#if (defined(WL_CFG80211_P2P_DEV_IF) || defined(WL_ENABLE_P2P_IF))
 			}
-
+#endif /* BCMDONGLEHOST && (WL_CFG80211_P2P_DEV_IF || WL_ENABLE_P2P_IF) */
 			if (!cfgdev) {
 				cfgdev = bcmcfg_to_prmry_wdev(cfg);
 			}
