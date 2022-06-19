@@ -130,6 +130,7 @@ MODULE_DEVICE_TABLE(i2c, sec_touchkey_id);
 
 extern int get_touchkey_firmware(char *version);
 static int touchkey_led_status;
+static int touchkey_led_status_on_suspend;
 static int touchled_cmd_reversed;
 static int led_on_keypress = 0;
 static bool touchkey_pressed = false;
@@ -1218,6 +1219,10 @@ static int sec_touchkey_early_suspend(struct early_suspend *h)
 		return 0;
 	}
 
+	touchkey_led_status_on_suspend = touchkey_led_status;
+	touchkey_led_status = TK_CMD_LED_OFF;
+	i2c_touchkey_write(bl_tkey_i2c->client, (u8 *) &touchkey_led_status, 1);
+
 	/* disable ldo18 */
 	tkey_i2c->pdata->led_power_on(0);
 
@@ -1280,10 +1285,10 @@ static int sec_touchkey_late_resume(struct early_suspend *h)
 #ifdef LED_LDO_WITH_REGULATOR
 		if (led_fadein) {
 			schedule_work(&led_fadein_work);
-		} else {
+/*		} else {
 			i2c_touchkey_write(tkey_i2c->client,
 				(u8 *) &touchkey_led_status, 1);
-			printk(KERN_DEBUG "[Touchkey] LED returned on\n");
+			printk(KERN_DEBUG "[Touchkey] LED returned on\n"); */
 		}
 #else
 		touchled_cmd_reversed = 0;
@@ -1302,6 +1307,9 @@ static int sec_touchkey_late_resume(struct early_suspend *h)
 	}
 #endif
 	enable_irq(tkey_i2c->irq);
+
+	touchkey_led_status = touchkey_led_status_on_suspend;
+	i2c_touchkey_write(bl_tkey_i2c->client, (u8 *) &touchkey_led_status, 1);
 
 	return 0;
 }
@@ -2784,6 +2792,7 @@ static int i2c_touchkey_probe(struct i2c_client *client,
 		(void *)sec_touchkey_early_suspend;
 	tkey_i2c->early_suspend.resume =
 		(void *)sec_touchkey_late_resume;
+	tkey_i2c->early_suspend.level = EARLY_SUSPEND_LEVEL_DISABLE_FB;
 	register_early_suspend(&tkey_i2c->early_suspend);
 #endif
 
