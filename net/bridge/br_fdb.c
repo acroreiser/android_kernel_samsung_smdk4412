@@ -493,8 +493,8 @@ static int fdb_insert(struct net_bridge *br, struct net_bridge_port *source,
 	struct hlist_head *head = &br->hash[br_mac_hash(addr, vid)];
 	struct net_bridge_fdb_entry *fdb;
 
-	if (!is_valid_ether_addr(addr))
-		return -EINVAL;
+//	if (!is_valid_ether_addr(addr))
+//		return -EINVAL;
 
 	fdb = fdb_find(head, addr, vid);
 	if (fdb) {

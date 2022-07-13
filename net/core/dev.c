@@ -1274,8 +1274,8 @@ static int __dev_open(struct net_device *dev)
 
 	set_bit(__LINK_STATE_START, &dev->state);
 
-	if (ops->ndo_validate_addr)
-		ret = ops->ndo_validate_addr(dev);
+//	if (ops->ndo_validate_addr)
+//		ret = ops->ndo_validate_addr(dev);
 
 	if (!ret && ops->ndo_open)
 		ret = ops->ndo_open(dev);

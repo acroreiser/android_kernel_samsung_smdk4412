@@ -436,11 +436,11 @@ int br_add_if(struct net_bridge *br, struct net_device *dev)
 	bool changed_addr;
 
 	/* Don't allow bridging non-ethernet like devices */
-	if ((dev->flags & IFF_LOOPBACK) ||
+/*	if ((dev->flags & IFF_LOOPBACK) ||
 	    dev->type != ARPHRD_ETHER || dev->addr_len != ETH_ALEN ||
 	    !is_valid_ether_addr(dev->dev_addr))
 		return -EINVAL;
-
+*/
 	/* No bridging of bridges */
 	if (dev->netdev_ops->ndo_start_xmit == br_dev_xmit)
 		return -ELOOP;
