@@ -7170,12 +7170,13 @@ dhdsdio_probe(uint16 venid, uint16 devid, uint16 bus_no, uint16 slot,
 	}
 #ifdef CUSTOMER_HW4
 	else {
-		/* Set ramdom MAC address during boot time */
-		get_random_bytes(&bus->dhd->mac.octet[3], 3);
 		/* Adding BRCM OUI */
 		bus->dhd->mac.octet[0] = 0;
 		bus->dhd->mac.octet[1] = 0x90;
 		bus->dhd->mac.octet[2] = 0x4C;
+		bus->dhd->mac.octet[3] = 0;
+		bus->dhd->mac.octet[4] = 0x43;
+		bus->dhd->mac.octet[5] = 0x34;
 	}
 #endif /* CUSTOMER_HW4 */
 	/* Ok, have the per-port tell the stack we're open for business */
