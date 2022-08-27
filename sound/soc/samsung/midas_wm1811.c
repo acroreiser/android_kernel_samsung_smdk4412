@@ -883,6 +883,8 @@ static int midas_wm1811_aif1_hw_params(struct snd_pcm_substream *substream,
 		return ret;
 
 #ifndef SND_USE_BIAS_LEVEL
+	snd_soc_dai_set_sysclk(codec_dai, WM8994_SYSCLK_FLL2,
+				     pll_out, SND_SOC_CLOCK_IN);
 	/* Switch the FLL */
 	ret = snd_soc_dai_set_pll(codec_dai, WM8994_FLL1,
 				  WM8994_FLL_SRC_MCLK1, MIDAS_DEFAULT_MCLK1,
