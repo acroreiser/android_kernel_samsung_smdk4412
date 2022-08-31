@@ -1173,8 +1173,8 @@ static struct snd_soc_dai_ops samsung_i2s_dai_ops = {
 #define SAMSUNG_I2S_RATES	SNDRV_PCM_RATE_8000_96000
 
 #define SAMSUNG_I2S_FMTS	(SNDRV_PCM_FMTBIT_S8 | \
-					SNDRV_PCM_FMTBIT_S16_LE | \
-					SNDRV_PCM_FMTBIT_S24_LE)
+					SNDRV_PCM_FMTBIT_S16_LE) // | \
+					// SNDRV_PCM_FMTBIT_S24_LE)
 
 static
 struct i2s_dai *i2s_alloc_dai(struct platform_device *pdev, bool sec)
