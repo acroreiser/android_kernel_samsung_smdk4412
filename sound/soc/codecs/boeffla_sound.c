@@ -3,7 +3,9 @@
  * 
  * Modifications: Yank555.lu 20.08.2013
  *
- * Version 1.6.7
+ * Updates: acroreiser 03.09.2022
+ *
+ * Version 1.6.8
  *
  * credits: Supercurio for ideas and partially code from his Voodoo
  * 	    	sound implementation,
@@ -26,6 +28,10 @@
 /*
  * Change log:
  * 
+ * 1.6.8 (03.09.2022)
+ *   - Add class W amplifier DYN_PWR control for headphones
+ *   - Minor hacks and fixes
+ *
  * 1.6.7 (22.09.2014)
  *   - Improved sysfs input validation
  *
@@ -82,6 +88,7 @@ static unsigned int eq_bands[5][4];	// frequency setup for headphone eq (speaker
 
 static int dac_direct;			// activate dac_direct for headphone eq
 static int dac_oversampling;	// activate 128bit oversampling for headphone eq
+static int dac_class_w;	// activate class W DYN_PWR for headphone
 static int fll_tuning;			// activate fll tuning to avoid jitter
 static int stereo_expansion_gain;	// activate stereo expansion effect if greater than zero
 static int mono_downmix;		// activate mono downmix
@@ -139,6 +146,7 @@ static unsigned int get_dac_direct_l(unsigned int val);
 static unsigned int get_dac_direct_r(unsigned int val);
 
 static void set_dac_oversampling(void);
+static void set_dac_class_w(void);
 static void set_fll_tuning(void);
 static void set_stereo_expansion(void);
 static void set_mono_downmix(void);
@@ -1110,6 +1118,79 @@ static void set_dac_oversampling()
 }
 
 
+// Class W
+
+static bool wm8994_check_class_w_digital(struct snd_soc_codec *codec)
+{
+	int source = 0;  /* GCC flow analysis can't track enable */
+	int reg, reg_r;
+
+	/* We also need the same AIF source for L/R and only one path */
+	reg = snd_soc_read(codec, WM8994_DAC1_LEFT_MIXER_ROUTING);
+	switch (reg) {
+	case WM8994_AIF2DACL_TO_DAC1L:
+		dev_vdbg(codec->dev, "Class W source AIF2DAC\n");
+		source = 2 << WM8994_CP_DYN_SRC_SEL_SHIFT;
+		break;
+	case WM8994_AIF1DAC2L_TO_DAC1L:
+		dev_vdbg(codec->dev, "Class W source AIF1DAC2\n");
+		source = 1 << WM8994_CP_DYN_SRC_SEL_SHIFT;
+		break;
+	case WM8994_AIF1DAC1L_TO_DAC1L:
+		dev_vdbg(codec->dev, "Class W source AIF1DAC1\n");
+		source = 0 << WM8994_CP_DYN_SRC_SEL_SHIFT;
+		break;
+	default:
+		dev_vdbg(codec->dev, "DAC mixer setting: %x\n", reg);
+		return false;
+	}
+
+	reg_r = snd_soc_read(codec, WM8994_DAC1_RIGHT_MIXER_ROUTING);
+	if (reg_r != reg) {
+		dev_vdbg(codec->dev, "Left and right DAC mixers different\n");
+		return false;
+	}
+
+	/* Set the source up */
+	snd_soc_update_bits(codec, WM8994_CLASS_W_1,
+			    WM8994_CP_DYN_SRC_SEL_MASK, source);
+
+	return true;
+}
+
+static void set_dac_class_w()
+{
+	unsigned int val;
+	bool state = false;
+
+	// read current value of class_w_1 register
+	val = wm8994_read(codec, WM8994_CLASS_W_1);
+
+	// toggle class_w bit depending on status + print debug
+	if (dac_class_w == ON)
+	{
+		val |= WM8994_CP_DYN_PWR;
+
+		if (debug(DEBUG_NORMAL))
+			printk("Boeffla-sound: set_dac_class_w DYN_PWR on\n");
+	}
+	else
+	{
+		val &= ~WM8994_CP_DYN_PWR;
+
+		if (debug(DEBUG_NORMAL))
+			printk("Boeffla-sound: set_dac_class_w DYN_PWR off\n");
+	}
+
+
+	// write value back to audio hub
+	wm8994_write(codec, WM8994_CLASS_W_1, val);
+
+	state = wm8994_check_class_w_digital(codec);
+	if (debug(DEBUG_NORMAL))
+			printk("Boeffla-sound: check_class_w_digital = %d\n", state);
+}
+
 // FLL tuning
 
 static void set_fll_tuning(void)
@@ -1329,6 +1410,8 @@ static void initialize_global_variables(void)
 
 	dac_oversampling = OFF;
 
+	dac_class_w = ON;
+
 	fll_tuning = OFF;
 
 	stereo_expansion_gain = STEREO_EXPANSION_GAIN_OFF;
@@ -1384,6 +1467,9 @@ static void reset_boeffla_sound(void)
 
 	// reset DAC_direct
 	set_dac_direct();
+
+	// reset class W
+	set_dac_class_w();
 
 	// reset DAC oversampling
 	set_dac_oversampling();
@@ -1589,7 +1675,7 @@ static ssize_t speaker_tuning_store(struct device *dev, struct device_attribute 
 
 	// print debug info
 	if (debug(DEBUG_NORMAL))
-		printk("Boeffla-sound: DAC oversampling %d\n", dac_oversampling);
+		printk("Boeffla-sound: speaker tuning %d\n", speaker_tuning);
 
 	return count;
 }
@@ -1815,6 +1901,42 @@ static ssize_t dac_oversampling_store(struct device *dev, struct device_attribut
 	return count;
 }
 
+// DAC oversampling
+
+static ssize_t dac_class_w_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "DAC Class W DYN_PWR: %d\n", dac_class_w);
+}
+
+
+static ssize_t dac_class_w_store(struct device *dev, struct device_attribute *attr,
+					const char *buf, size_t count)
+{
+	unsigned int ret = -EINVAL;
+	unsigned int val;
+
+	// Terminate instantly if boeffla sound is not enabled
+	if (!boeffla_sound)
+		return count;
+
+	// read values from input buffer, check validity and update audio hub
+	ret = sscanf(buf, "%d", &val);
+
+    if (ret != 1)
+        return -EINVAL;
+
+	if ((val == ON) || (val == OFF))
+	{
+		dac_class_w = val;
+		set_dac_class_w();
+	}
+
+	// print debug info
+	if (debug(DEBUG_NORMAL))
+		printk("Boeffla-sound: DAC Class W DYN_PWR %d\n", dac_class_w);
+
+	return count;
+}
 
 // FLL tuning
 
@@ -2156,6 +2278,9 @@ static ssize_t debug_info_show(struct device *dev, struct device_attribute *attr
 	val = wm8994_read(codec, WM8994_OVERSAMPLING);
 	sprintf(buf+strlen(buf), "WM8994_OVERSAMPLING: %d\n", val);
 
+	val = wm8994_read(codec, WM8994_CLASS_W_1);
+	sprintf(buf+strlen(buf), "WM8994_CLASS_W_1: %d\n", val);
+
 	val = wm8994_read(codec, WM8994_FLL1_CONTROL_4);
 	sprintf(buf+strlen(buf), "WM8994_FLL1_CONTROL_4: %d\n", val);
 
@@ -2341,6 +2466,7 @@ static DEVICE_ATTR(eq_gains, S_IRUGO | S_IWUGO, eq_gains_show, eq_gains_store);
 static DEVICE_ATTR(eq_bands, S_IRUGO | S_IWUGO, eq_bands_show, eq_bands_store);
 static DEVICE_ATTR(dac_direct, S_IRUGO | S_IWUGO, dac_direct_show, dac_direct_store);
 static DEVICE_ATTR(dac_oversampling, S_IRUGO | S_IWUGO, dac_oversampling_show, dac_oversampling_store);
+static DEVICE_ATTR(dac_class_w, S_IRUGO | S_IWUGO, dac_class_w_show, dac_class_w_store);
 static DEVICE_ATTR(fll_tuning, S_IRUGO | S_IWUGO, fll_tuning_show, fll_tuning_store);
 static DEVICE_ATTR(stereo_expansion, S_IRUGO | S_IWUGO, stereo_expansion_show, stereo_expansion_store);
 static DEVICE_ATTR(mono_downmix, S_IRUGO | S_IWUGO, mono_downmix_show, mono_downmix_store);
@@ -2365,6 +2491,7 @@ static struct attribute *boeffla_sound_attributes[] = {
 	&dev_attr_eq_bands.attr,
 	&dev_attr_dac_direct.attr,
 	&dev_attr_dac_oversampling.attr,
+	&dev_attr_dac_class_w.attr,
 	&dev_attr_fll_tuning.attr,
 	&dev_attr_stereo_expansion.attr,
 	&dev_attr_mono_downmix.attr,
