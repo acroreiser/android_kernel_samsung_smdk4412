@@ -3,9 +3,9 @@
  * 
  * Modifications: Yank555.lu 20.08.2013
  *
- * Updates: acroreiser 03.09.2022
+ * Updates: acroreiser 04.09.2022
  *
- * Version 1.6.8
+ * Version 1.6.9
  *
  * credits: Supercurio for ideas and partially code from his Voodoo
  * 	    	sound implementation,
@@ -27,6 +27,9 @@
 
 /*
  * Change log:
+ *
+ * 1.6.9 (04.09.2022)
+ *   - Automatically disable eq on unsupported samplerates
  * 
  * 1.6.8 (03.09.2022)
  *   - Add class W amplifier DYN_PWR control for headphones
@@ -85,6 +88,8 @@ static int eq;   				// activates headphone eq
 static int eq_gains[5];			// gain information for headphone eq (speaker is static)
 
 static unsigned int eq_bands[5][4];	// frequency setup for headphone eq (speaker is static)
+
+static int prev_samplerate; // used to automatically disable eq on high samplerates (88200/96000 Hz)
 
 static int dac_direct;			// activate dac_direct for headphone eq
 static int dac_oversampling;	// activate 128bit oversampling for headphone eq
@@ -702,6 +707,53 @@ static void set_eq(void)
 	set_eq_bands();
 	set_eq_satprevention();
 	set_speaker_boost();
+}
+
+ void set_eq_samplerate(unsigned int samplerate)
+{
+	unsigned int val;
+
+
+	// Equalizer will only be switched on in fact if
+	// 1. headphone eq is on, there is no call and there is headphone connected -- or --
+	// 2. speaker tuning is enabled, there is no call and there is no headphone connected
+
+	// set internal state variables
+	if (eq == EQ_OFF)
+		return;
+
+	if(samplerate == prev_samplerate)
+		return;
+
+	// switch equalizer based on samplerate
+	if (samplerate == 48000 || samplerate == 44100)
+	{
+		// switch EQ on + print debug
+		val = wm8994_read(codec, WM8994_AIF1_DAC1_EQ_GAINS_1);
+		val |= WM8994_AIF1DAC1_EQ_ENA_MASK;
+		wm8994_write(codec, WM8994_AIF1_DAC1_EQ_GAINS_1, val);
+
+		if (debug(DEBUG_NORMAL))
+			printk("Boeffla-sound: equalizer re-enabled on samplerate %u\n", samplerate);
+	}
+	else
+	{
+		// switch EQ off + print debug
+		val = wm8994_read(codec, WM8994_AIF1_DAC1_EQ_GAINS_1);
+		val &= ~WM8994_AIF1DAC1_EQ_ENA_MASK;
+		wm8994_write(codec, WM8994_AIF1_DAC1_EQ_GAINS_1, val);
+
+		if (debug(DEBUG_NORMAL))
+			printk("Boeffla-sound: equalizer will not process on this samplerate: %u\n", samplerate);
+	}
+
+	// refresh settings for gains, bands, saturation prevention and speaker boost
+	set_eq_gains();
+	set_eq_bands();
+	set_eq_satprevention();
+	set_speaker_boost();
+
+	prev_samplerate = samplerate;
 }
 
 // Delayed work to apply settings after a change is detected

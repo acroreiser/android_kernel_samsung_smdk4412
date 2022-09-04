@@ -52,6 +52,8 @@
 #define WM8994_NUM_DRC 3
 #define WM8994_NUM_EQ  3
 
+extern void set_eq_samplerate(unsigned int samplerate);
+
 static struct {
 	unsigned int reg;
 	unsigned int mask;
@@ -2948,8 +2950,8 @@ static int wm8994_hw_params(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	rate_val |= srs[i].val << WM8994_AIF1_SR_SHIFT;
 
-	dev_dbg(dai->dev, "Sample rate is %dHz\n", srs[i].rate);
-	dev_dbg(dai->dev, "AIF%dCLK is %dHz, target BCLK %dHz\n",
+	dev_info(dai->dev, "Sample rate is %dHz\n", srs[i].rate);
+	dev_info(dai->dev, "AIF%dCLK is %dHz, target BCLK %dHz\n",
 		dai->id, wm8994->aifclk[id], bclk_rate);
 
 	if (params_channels(params) == 1 &&
@@ -3010,6 +3012,8 @@ static int wm8994_hw_params(struct snd_pcm_substream *substream,
 			    lrclk);
 	snd_soc_update_bits(codec, rate_reg, WM8994_AIF1_SR_MASK |
 			    WM8994_AIF1CLK_RATE_MASK, rate_val);
+
+	set_eq_samplerate(params_rate(params));
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		switch (dai->id) {
