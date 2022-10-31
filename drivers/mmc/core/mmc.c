@@ -677,6 +677,10 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 			(card->cid.manfid == 0x11))
 			card->ext_csd.feature_support |= MMC_DISCARD_FEATURE;
 
+		/* Adjust production date as per JEDEC JESD84-B451 */
+		if (card->cid.year < 2010)
+			card->cid.year += 16;
+
 		/* check whether the eMMC card supports HPI */
 		if (ext_csd[EXT_CSD_HPI_FEATURES] & 0x1) {
 			card->ext_csd.hpi = 1;
