@@ -3,9 +3,9 @@
  * 
  * Modifications: Yank555.lu 20.08.2013
  *
- * Updates: acroreiser 04.09.2022
+ * Updates: acroreiser 09.04.2023
  *
- * Version 1.6.9
+ * Version 1.7
  *
  * credits: Supercurio for ideas and partially code from his Voodoo
  * 	    	sound implementation,
@@ -27,6 +27,11 @@
 
 /*
  * Change log:
+ *
+ * 1.7 (09.04.2023)
+ *   - Noise gate control
+ *   - Do not actually enable EQ on unsupported samplerates
+ *   - Fix typos
  *
  * 1.6.9 (04.09.2022)
  *   - Automatically disable eq on unsupported samplerates
@@ -94,6 +99,7 @@ static int prev_samplerate; // used to automatically disable eq on high samplera
 static int dac_direct;			// activate dac_direct for headphone eq
 static int dac_oversampling;	// activate 128bit oversampling for headphone eq
 static int dac_class_w;	// activate class W DYN_PWR for headphone
+static int dac_ng;	// activate noise gate
 static int fll_tuning;			// activate fll tuning to avoid jitter
 static int stereo_expansion_gain;	// activate stereo expansion effect if greater than zero
 static int mono_downmix;		// activate mono downmix
@@ -118,6 +124,7 @@ static unsigned int regcache[REGDUMP_BANKS * REGDUMP_REGISTERS + 1];	// register
 
 static int mic_level;			// internal mic level
 
+static int eq_samplerate = 44100;
 
 /*****************************************/
 // Internal function declarations
@@ -152,6 +159,7 @@ static unsigned int get_dac_direct_r(unsigned int val);
 
 static void set_dac_oversampling(void);
 static void set_dac_class_w(void);
+static void set_dac_ng(void);
 static void set_fll_tuning(void);
 static void set_stereo_expansion(void);
 static void set_mono_downmix(void);
@@ -680,6 +688,10 @@ static void set_eq(void)
 		is_eq_headphone = false;
 	}
 
+	// Do not actually enable EQ when samplerate too high
+	if (eq_samplerate != 48000 && eq_samplerate != 44100)
+		return;
+
 	// switch equalizer based on internal status
 	if (is_eq)
 	{
@@ -713,6 +725,7 @@ static void set_eq(void)
 {
 	unsigned int val;
 
+	eq_samplerate = samplerate;
 
 	// Equalizer will only be switched on in fact if
 	// 1. headphone eq is on, there is no call and there is headphone connected -- or --
@@ -1243,6 +1256,36 @@ static void set_dac_class_w()
 			printk("Boeffla-sound: check_class_w_digital = %d\n", state);
 }
 
+static void set_dac_ng()
+{
+	unsigned int val;
+	bool state = false;
+
+	// read current value of noise gate register
+	val = wm8994_read(codec, WM8958_AIF1_DAC1_NOISE_GATE);
+
+	// toggle class_w bit depending on status + print debug
+	if (dac_ng == ON)
+	{
+		val |= WM8958_AIF1DAC1_NG_HLD_MASK;
+		val |= WM8958_AIF1DAC1_NG_THR_MASK;
+		val |= WM8958_AIF1DAC1_NG_ENA;
+
+		if (debug(DEBUG_NORMAL))
+			printk("Boeffla-sound: noise gate on\n");
+	}
+	else
+	{
+		val &= ~WM8958_AIF1DAC1_NG_ENA;
+
+		if (debug(DEBUG_NORMAL))
+			printk("Boeffla-sound: noise gate off\n");
+	}
+
+
+	// write value back to audio hub
+	wm8994_write(codec, WM8958_AIF1_DAC1_NOISE_GATE, val);
+}
 // FLL tuning
 
 static void set_fll_tuning(void)
@@ -1464,6 +1507,8 @@ static void initialize_global_variables(void)
 
 	dac_class_w = ON;
 
+	dac_ng = OFF;
+
 	fll_tuning = OFF;
 
 	stereo_expansion_gain = STEREO_EXPANSION_GAIN_OFF;
@@ -1522,6 +1567,9 @@ static void reset_boeffla_sound(void)
 
 	// reset class W
 	set_dac_class_w();
+
+	// reset ng
+	set_dac_ng();
 
 	// reset DAC oversampling
 	set_dac_oversampling();
@@ -1953,7 +2001,7 @@ static ssize_t dac_oversampling_store(struct device *dev, struct device_attribut
 	return count;
 }
 
-// DAC oversampling
+// DAC Class W
 
 static ssize_t dac_class_w_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -1986,6 +2034,43 @@ static ssize_t dac_class_w_store(struct device *dev, struct device_attribute *at
 	// print debug info
 	if (debug(DEBUG_NORMAL))
 		printk("Boeffla-sound: DAC Class W DYN_PWR %d\n", dac_class_w);
+
+	return count;
+}
+
+// DAC Noise Gate
+
+static ssize_t dac_noise_gate_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "DAC Noise Gate: %d\n", dac_ng);
+}
+
+
+static ssize_t dac_noise_gate_store(struct device *dev, struct device_attribute *attr,
+					const char *buf, size_t count)
+{
+	unsigned int ret = -EINVAL;
+	unsigned int val;
+
+	// Terminate instantly if boeffla sound is not enabled
+	if (!boeffla_sound)
+		return count;
+
+	// read values from input buffer, check validity and update audio hub
+	ret = sscanf(buf, "%d", &val);
+
+    if (ret != 1)
+        return -EINVAL;
+
+	if ((val == ON) || (val == OFF))
+	{
+		dac_ng = val;
+		set_dac_ng();
+	}
+
+	// print debug info
+	if (debug(DEBUG_NORMAL))
+		printk("Boeffla-sound: DAC Noise Gate %d\n", dac_ng);
 
 	return count;
 }
@@ -2519,6 +2604,7 @@ static DEVICE_ATTR(eq_bands, S_IRUGO | S_IWUGO, eq_bands_show, eq_bands_store);
 static DEVICE_ATTR(dac_direct, S_IRUGO | S_IWUGO, dac_direct_show, dac_direct_store);
 static DEVICE_ATTR(dac_oversampling, S_IRUGO | S_IWUGO, dac_oversampling_show, dac_oversampling_store);
 static DEVICE_ATTR(dac_class_w, S_IRUGO | S_IWUGO, dac_class_w_show, dac_class_w_store);
+static DEVICE_ATTR(dac_noise_gate, S_IRUGO | S_IWUGO, dac_noise_gate_show, dac_noise_gate_store);
 static DEVICE_ATTR(fll_tuning, S_IRUGO | S_IWUGO, fll_tuning_show, fll_tuning_store);
 static DEVICE_ATTR(stereo_expansion, S_IRUGO | S_IWUGO, stereo_expansion_show, stereo_expansion_store);
 static DEVICE_ATTR(mono_downmix, S_IRUGO | S_IWUGO, mono_downmix_show, mono_downmix_store);
@@ -2544,6 +2630,7 @@ static struct attribute *boeffla_sound_attributes[] = {
 	&dev_attr_dac_direct.attr,
 	&dev_attr_dac_oversampling.attr,
 	&dev_attr_dac_class_w.attr,
+	&dev_attr_dac_noise_gate.attr,
 	&dev_attr_fll_tuning.attr,
 	&dev_attr_stereo_expansion.attr,
 	&dev_attr_mono_downmix.attr,
