@@ -3,9 +3,9 @@
  * 
  * Modifications: Yank555.lu 20.08.2013
  *
- * Updates: acroreiser 09.04.2023
+ * Updates: acroreiser 29.05.2023
  *
- * Version 1.7
+ * Version 1.8
  *
  * credits: Supercurio for ideas and partially code from his Voodoo
  * 	    	sound implementation,
@@ -27,6 +27,10 @@
 
 /*
  * Change log:
+ *
+ * 1.8 (29.05.2023)
+ *   - Noise gate threshold control
+ *   - DAC Volume Boost control
  *
  * 1.7 (09.04.2023)
  *   - Noise gate control
@@ -100,6 +104,8 @@ static int dac_direct;			// activate dac_direct for headphone eq
 static int dac_oversampling;	// activate 128bit oversampling for headphone eq
 static int dac_class_w;	// activate class W DYN_PWR for headphone
 static int dac_ng;	// activate noise gate
+static int dac_ng_thr;	// activate noise gate threshold
+static int dac_boost;	// volume boost (0-3)
 static int fll_tuning;			// activate fll tuning to avoid jitter
 static int stereo_expansion_gain;	// activate stereo expansion effect if greater than zero
 static int mono_downmix;		// activate mono downmix
@@ -160,6 +166,8 @@ static unsigned int get_dac_direct_r(unsigned int val);
 static void set_dac_oversampling(void);
 static void set_dac_class_w(void);
 static void set_dac_ng(void);
+static void set_dac_ng_thr(void);
+static void set_dac_boost(void);
 static void set_fll_tuning(void);
 static void set_stereo_expansion(void);
 static void set_mono_downmix(void);
@@ -1286,6 +1294,85 @@ static void set_dac_ng()
 	// write value back to audio hub
 	wm8994_write(codec, WM8958_AIF1_DAC1_NOISE_GATE, val);
 }
+
+static void set_dac_ng_thr()
+{
+	unsigned int val;
+	bool state = false;
+
+	// read current value of noise gate register
+	val = wm8994_read(codec, WM8958_AIF1_DAC1_NOISE_GATE);
+
+	val &= ~WM8958_AIF1DAC1_NG_HLD_MASK;
+	val &= ~WM8958_AIF1DAC1_NG_THR_MASK;
+	val &= ~WM8958_AIF1DAC1_NG_ENA;
+
+	switch(dac_ng_thr){
+	case 0:
+		val |= 0x6f;
+		break;
+	case 1:
+		val |= 0x6d;
+		break;
+	case 2:
+		val |= 0x6b;
+		break;
+	case 3:
+		val |= 0x69;
+		break;
+	case 4:
+		val |= 0x67;
+		break;
+	case 5:
+		val |= 0x65;
+		break;
+	case 6:
+		val |= 0x63;
+		break;
+	case 7:
+		val |= 0x61;
+		break;
+	}
+
+	if(dac_ng == OFF)
+		val &= ~WM8958_AIF1DAC1_NG_ENA;
+
+	// write value back to audio hub
+	wm8994_write(codec, WM8958_AIF1_DAC1_NOISE_GATE, val);
+}
+
+static void set_dac_boost()
+{
+	unsigned int val;
+	bool state = false;
+
+	// read current value of control register
+	val = wm8994_read(codec, WM8994_AIF1_CONTROL_2);
+
+	// set WM8994_AIF1_CONTROL_2 bit depending on boost level
+
+	val &= ~WM8994_AIF1DAC_BOOST_MASK;
+
+	switch(dac_boost){
+	case 0:
+		val |= 0x0000;
+		break;
+	case 1:
+		val |= 0x0400;
+		break;
+	case 2:
+		val |= 0x0800;
+		break;
+	case 3:
+		val |= 0x0c00;
+		break;
+	}
+
+
+	// write value back to audio hub
+	wm8994_write(codec, WM8994_AIF1_CONTROL_2, val);
+}
+
 // FLL tuning
 
 static void set_fll_tuning(void)
@@ -1509,6 +1596,10 @@ static void initialize_global_variables(void)
 
 	dac_ng = OFF;
 
+	dac_ng_thr = 0;
+
+	dac_boost = 0;
+
 	fll_tuning = OFF;
 
 	stereo_expansion_gain = STEREO_EXPANSION_GAIN_OFF;
@@ -1570,6 +1661,12 @@ static void reset_boeffla_sound(void)
 
 	// reset ng
 	set_dac_ng();
+
+	// reset ng threshold
+	set_dac_ng_thr();
+
+	// reset boost
+	set_dac_boost();
 
 	// reset DAC oversampling
 	set_dac_oversampling();
@@ -2071,6 +2168,80 @@ static ssize_t dac_noise_gate_store(struct device *dev, struct device_attribute 
 	// print debug info
 	if (debug(DEBUG_NORMAL))
 		printk("Boeffla-sound: DAC Noise Gate %d\n", dac_ng);
+
+	return count;
+}
+
+// DAC Noise Gate Threshold
+
+static ssize_t dac_noise_gate_threshold_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "DAC Noise Gate threshold: %d\n", dac_ng_thr);
+}
+
+
+static ssize_t dac_noise_gate_threshold_store(struct device *dev, struct device_attribute *attr,
+					const char *buf, size_t count)
+{
+	unsigned int ret = -EINVAL;
+	unsigned int val;
+
+	// Terminate instantly if boeffla sound is not enabled
+	if (!boeffla_sound)
+		return count;
+
+	// read values from input buffer, check validity and update audio hub
+	ret = sscanf(buf, "%d", &val);
+
+    if (ret != 1)
+        return -EINVAL;
+
+	if ((val >= 0) && (val < 8))
+	{
+		dac_ng_thr = val;
+		set_dac_ng_thr();
+	}
+
+	// print debug info
+	if (debug(DEBUG_NORMAL))
+		printk("Boeffla-sound: DAC Noise Gate threshold %d\n", dac_ng_thr);
+
+	return count;
+}
+
+// DAC Volume Boost
+
+static ssize_t dac_boost_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "DAC Boost: %d\n", dac_boost);
+}
+
+
+static ssize_t dac_boost_store(struct device *dev, struct device_attribute *attr,
+					const char *buf, size_t count)
+{
+	unsigned int ret = -EINVAL;
+	unsigned int val;
+
+	// Terminate instantly if boeffla sound is not enabled
+	if (!boeffla_sound)
+		return count;
+
+	// read values from input buffer, check validity and update audio hub
+	ret = sscanf(buf, "%d", &val);
+
+    if (ret != 1)
+        return -EINVAL;
+
+	if ((val >= 0) && (val < 4))
+	{
+		dac_boost = val;
+		set_dac_boost();
+	}
+
+	// print debug info
+	if (debug(DEBUG_NORMAL))
+		printk("Boeffla-sound: DAC Boost %d\n", dac_boost);
 
 	return count;
 }
@@ -2605,6 +2776,8 @@ static DEVICE_ATTR(dac_direct, S_IRUGO | S_IWUGO, dac_direct_show, dac_direct_st
 static DEVICE_ATTR(dac_oversampling, S_IRUGO | S_IWUGO, dac_oversampling_show, dac_oversampling_store);
 static DEVICE_ATTR(dac_class_w, S_IRUGO | S_IWUGO, dac_class_w_show, dac_class_w_store);
 static DEVICE_ATTR(dac_noise_gate, S_IRUGO | S_IWUGO, dac_noise_gate_show, dac_noise_gate_store);
+static DEVICE_ATTR(dac_noise_gate_threshold, S_IRUGO | S_IWUGO, dac_noise_gate_threshold_show, dac_noise_gate_threshold_store);
+static DEVICE_ATTR(dac_volume_boost, S_IRUGO | S_IWUGO, dac_boost_show, dac_boost_store);
 static DEVICE_ATTR(fll_tuning, S_IRUGO | S_IWUGO, fll_tuning_show, fll_tuning_store);
 static DEVICE_ATTR(stereo_expansion, S_IRUGO | S_IWUGO, stereo_expansion_show, stereo_expansion_store);
 static DEVICE_ATTR(mono_downmix, S_IRUGO | S_IWUGO, mono_downmix_show, mono_downmix_store);
@@ -2631,6 +2804,8 @@ static struct attribute *boeffla_sound_attributes[] = {
 	&dev_attr_dac_oversampling.attr,
 	&dev_attr_dac_class_w.attr,
 	&dev_attr_dac_noise_gate.attr,
+	&dev_attr_dac_noise_gate_threshold.attr,
+	&dev_attr_dac_volume_boost.attr,
 	&dev_attr_fll_tuning.attr,
 	&dev_attr_stereo_expansion.attr,
 	&dev_attr_mono_downmix.attr,

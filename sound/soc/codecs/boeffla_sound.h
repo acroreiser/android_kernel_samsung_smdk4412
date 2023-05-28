@@ -3,9 +3,9 @@
  * 
  * Modifications: Yank555.lu 20.08.2013
  *
- * Updates: acroreiser 09.04.2023
+ * Updates: acroreiser 29.05.2023
  *
- * Version 1.7
+ * Version 1.8
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -33,7 +33,7 @@ unsigned int Boeffla_sound_hook_wm8994_write(unsigned int reg, unsigned int valu
 
 // Boeffla sound general
 #define BOEFFLA_SOUND_DEFAULT 	0
-#define BOEFFLA_SOUND_VERSION 	"1.7"
+#define BOEFFLA_SOUND_VERSION 	"1.8"
 
 // Debug mode
 #define DEBUG_DEFAULT 		1
