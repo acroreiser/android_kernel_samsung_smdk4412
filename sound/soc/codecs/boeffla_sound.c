@@ -1,11 +1,11 @@
 /*
  * Author: andip71, 22.09.2014
- * 
+ *
  * Modifications: Yank555.lu 20.08.2013
  *
- * Updates: acroreiser 29.05.2023
+ * Updates: acroreiser 05.02.2024
  *
- * Version 1.8
+ * Version 1.9
  *
  * credits: Supercurio for ideas and partially code from his Voodoo
  * 	    	sound implementation,
@@ -23,10 +23,12 @@
  * GNU General Public License for more details.
  *
  */
-       
 
 /*
  * Change log:
+ *
+ * 1.9 (05.02.2024)
+ *  - Option to use volume +/- keys as next/prev track (Linux/X11)
  *
  * 1.8 (29.05.2023)
  *   - Noise gate threshold control
@@ -39,7 +41,7 @@
  *
  * 1.6.9 (04.09.2022)
  *   - Automatically disable eq on unsupported samplerates
- * 
+ *
  * 1.6.8 (03.09.2022)
  *   - Add class W amplifier DYN_PWR control for headphones
  *   - Minor hacks and fixes
@@ -49,7 +51,7 @@
  *
  * 1.6.5 (14.01.2014)
  *   - Allow speaker level minimum of 20
- * 
+ *
  */
 
 #include <sound/soc.h>
@@ -106,6 +108,7 @@ static int dac_class_w;	// activate class W DYN_PWR for headphone
 static int dac_ng;	// activate noise gate
 static int dac_ng_thr;	// activate noise gate threshold
 static int dac_boost;	// volume boost (0-3)
+static int playback_control;
 static int fll_tuning;			// activate fll tuning to avoid jitter
 static int stereo_expansion_gain;	// activate stereo expansion effect if greater than zero
 static int mono_downmix;		// activate mono downmix
@@ -131,6 +134,9 @@ static unsigned int regcache[REGDUMP_BANKS * REGDUMP_REGISTERS + 1];	// register
 static int mic_level;			// internal mic level
 
 static int eq_samplerate = 44100;
+
+// external variables
+extern int virtkb_playback_control;
 
 /*****************************************/
 // Internal function declarations
@@ -168,6 +174,7 @@ static void set_dac_class_w(void);
 static void set_dac_ng(void);
 static void set_dac_ng_thr(void);
 static void set_dac_boost(void);
+static void set_playback_control(void);
 static void set_fll_tuning(void);
 static void set_stereo_expansion(void);
 static void set_mono_downmix(void);
@@ -1373,6 +1380,11 @@ static void set_dac_boost()
 	wm8994_write(codec, WM8994_AIF1_CONTROL_2, val);
 }
 
+static void set_playback_control(void)
+{
+	virtkb_playback_control = playback_control;
+}
+
 // FLL tuning
 
 static void set_fll_tuning(void)
@@ -1600,6 +1612,8 @@ static void initialize_global_variables(void)
 
 	dac_boost = 0;
 
+	playback_control = 0;
+
 	fll_tuning = OFF;
 
 	stereo_expansion_gain = STEREO_EXPANSION_GAIN_OFF;
@@ -1667,6 +1681,9 @@ static void reset_boeffla_sound(void)
 
 	// reset boost
 	set_dac_boost();
+
+	// reset playback control
+	set_playback_control();
 
 	// reset DAC oversampling
 	set_dac_oversampling();
@@ -2246,6 +2263,43 @@ static ssize_t dac_boost_store(struct device *dev, struct device_attribute *attr
 	return count;
 }
 
+// Playback control on volume keys
+
+static ssize_t playback_control_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "Playback control: %d\n", playback_control);
+}
+
+
+static ssize_t playback_control_store(struct device *dev, struct device_attribute *attr,
+					const char *buf, size_t count)
+{
+	unsigned int ret = -EINVAL;
+	unsigned int val;
+
+	// Terminate instantly if boeffla sound is not enabled
+	if (!boeffla_sound)
+		return count;
+
+	// read values from input buffer, check validity and update audio hub
+	ret = sscanf(buf, "%d", &val);
+
+    if (ret != 1)
+        return -EINVAL;
+
+	if ((val >= 0) && (val < 4))
+	{
+		playback_control = val;
+		set_playback_control();
+	}
+
+	// print debug info
+	if (debug(DEBUG_NORMAL))
+		printk("Boeffla-sound: playback control %d\n", playback_control);
+
+	return count;
+}
+
 // FLL tuning
 
 static ssize_t fll_tuning_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -2778,6 +2832,7 @@ static DEVICE_ATTR(dac_class_w, S_IRUGO | S_IWUGO, dac_class_w_show, dac_class_w
 static DEVICE_ATTR(dac_noise_gate, S_IRUGO | S_IWUGO, dac_noise_gate_show, dac_noise_gate_store);
 static DEVICE_ATTR(dac_noise_gate_threshold, S_IRUGO | S_IWUGO, dac_noise_gate_threshold_show, dac_noise_gate_threshold_store);
 static DEVICE_ATTR(dac_volume_boost, S_IRUGO | S_IWUGO, dac_boost_show, dac_boost_store);
+static DEVICE_ATTR(playback_control, S_IRUGO | S_IWUGO, playback_control_show, playback_control_store);
 static DEVICE_ATTR(fll_tuning, S_IRUGO | S_IWUGO, fll_tuning_show, fll_tuning_store);
 static DEVICE_ATTR(stereo_expansion, S_IRUGO | S_IWUGO, stereo_expansion_show, stereo_expansion_store);
 static DEVICE_ATTR(mono_downmix, S_IRUGO | S_IWUGO, mono_downmix_show, mono_downmix_store);
@@ -2806,6 +2861,7 @@ static struct attribute *boeffla_sound_attributes[] = {
 	&dev_attr_dac_noise_gate.attr,
 	&dev_attr_dac_noise_gate_threshold.attr,
 	&dev_attr_dac_volume_boost.attr,
+        &dev_attr_playback_control.attr,
 	&dev_attr_fll_tuning.attr,
 	&dev_attr_stereo_expansion.attr,
 	&dev_attr_mono_downmix.attr,

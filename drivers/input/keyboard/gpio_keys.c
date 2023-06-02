@@ -38,6 +38,8 @@
 
 extern struct class *sec_class;
 
+int virtkb_playback_control = 0;
+
 struct gpio_button_data {
 	struct gpio_keys_button *button;
 	struct input_dev *input;
@@ -501,6 +503,8 @@ extern suspend_state_t get_suspend_state(void);
 void request_suspend_state(suspend_state_t state);
 #endif
 
+extern void report_virtual_key(int code, int state);
+
 static void gpio_keys_report_event(struct gpio_button_data *bdata)
 {
 	static int64_t homekey_lasttime = 0;
@@ -668,6 +672,7 @@ static void gpio_keys_report_event(struct gpio_button_data *bdata)
 		}
 
 #endif
+
 		if (button->code == KEY_POWER)
 			printk(KERN_DEBUG"[keys]PWR %d\n", !!state);
 
@@ -677,8 +682,22 @@ static void gpio_keys_report_event(struct gpio_button_data *bdata)
 		else
 		{
 #endif
-			input_event(input, type, button->code, !!state);
-			input_sync(input);
+			if (virtkb_playback_control && (get_suspend_state() > 0)) {
+				switch(button->code)
+				{
+					case KEY_VOLUMEDOWN:
+						report_virtual_key(KEY_NEXTSONG, !!state);
+						break;
+					case KEY_VOLUMEUP:
+						report_virtual_key(KEY_PREVIOUSSONG, !!state);
+						break;
+				}
+			}
+			else
+			{
+				input_event(input, type, button->code, !!state);
+				input_sync(input);
+			}
 #ifdef CONFIG_INPUT_WAKE_ON_POWER
 		}
 #endif
