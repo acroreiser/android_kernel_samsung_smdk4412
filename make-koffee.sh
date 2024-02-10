@@ -1,14 +1,14 @@
 #!/bin/bash
 
-VERSION=0.5
+VERSION=0.6
 DEFCONFIG=
 TOOLCHAIN=
 KCONFIG=false
 CUST_CONF=no
-BUILD_NUMBER=
+BUILD_NUMBER=1
 DEVICE=UNKNOWN
 KCONF_REPLACE=false
-KERNEL_NAME="ubuntu"
+KERNEL_NAME="linux"
 BOEFFLA_VERSION="-"
 SKIP_MODULES=true
 DONTPACK=false
@@ -21,7 +21,7 @@ CLEAN=false
 usage() {
 	echo "Koffee build script v$VERSION"
 	echo `date`
-	echo "Written by A\$teroid <acroreiser@gmail.com>"
+	echo "Written by acroreiser <acroreiser@gmail.com>"
 	echo ""
     echo "Usage:"
     echo ""
@@ -41,17 +41,17 @@ usage() {
 	echo "	-R 			save your arguments to reuse (just run make-koffee.sh on next builds)"
 	echo "	-U <username> 			set build user"
 	echo "	-N <release_number> 			set release number"
+	echo "  -M                      Ship the kernel with a bootmenu"
 	echo "	-v 			show build script version"
 	echo "	-h 			show this help"
-	
 }
 
-prepare() 
+prepare()
 {
  	make -j4 clean
 }
 
-make_config() 
+make_config()
 {
 	if [ "$CUST_CONF" != "no" ]; then
 		cp $CUST_CONF `pwd`/.config
@@ -128,19 +128,24 @@ make_flashable()
 		${TOOLCHAIN}strip --strip-unneeded $MODULES_PATH/*
 
 	} 2>/dev/null
-	
+
 	fi
 	# replace variables in anykernel script
 	cd $REPACK_PATH
 	KERNELNAME="GNU/Linux 3.18 kernel for i9300"
 	sed -i "s;###kernelname###;'${KERNELNAME}';" META-INF/com/google/android/update-binary;
-	COPYRIGHT=$(echo '(c) A\$teroid, ChronoMonochrome, 2020')
+	COPYRIGHT=$(echo '(c) acroreiser, ChronoMonochrome, 2019-2024')
 	sed -i "s;###copyright###;${COPYRIGHT};" META-INF/com/google/android/update-binary;
 	BUILDINFO="Release 3.18 (${BUILD_NUMBER}), $DATE"
 	sed -i "s;###buildinfo###;${BUILDINFO};" META-INF/com/google/android/update-binary;
 	SOURCECODE="NOT COMPATIBLE WITH ANDROID!"
 	sed -i "s;###sourcecode###;${SOURCECODE};" META-INF/com/google/android/update-binary;
 
+	if [ "$MENU" = "true" ]; then
+		sed -i s/do.bootmenu=0/do.bootmenu=1/ anykernel.sh
+	else
+		rm -fr menu;
+	fi
 
 	# create zip file
 	zip -r9 ${KERNEL_NAME}${BOEFFLA_VERSION}r${BUILD_NUMBER}.zip * -x ${KERNEL_NAME}${BOEFFLA_VERSION}r${BUILD_NUMBER}.zip
@@ -164,7 +169,7 @@ make_flashable()
 
 # Pre
 
-while getopts "hvO:j:Kd:kB:S:N:CU:t:" opt
+while getopts "hvO:j:Kd:kB:S:N:CU:t:M" opt
 do
 case $opt in
 	h) usage; exit 0;;
@@ -179,6 +184,7 @@ case $opt in
 	k) DONTPACK=true;;
 	d) DEFCONFIG="$OPTARG"; KCONF_REPLACE=true;;
 	U) USER=$OPTARG;;
+	M) MENU=true;;
 	*) usage; exit 0;;
 esac
 done
@@ -202,9 +208,9 @@ echo $DATE
 if [ "$DEFCONFIG" == "" ];
 then
 	if [ ! -f "$BUILD_PATH/.config" ]; then
-		echo "FATAL: No config specified!" 
+		echo "FATAL: No config specified!"
 		echo "*** BUILD FAILED ***"
-		exit 1 
+		exit 1
 	fi
 	DEFCONFIG=".config"
 fi
@@ -212,20 +218,20 @@ fi
 if [ "$DEFCONFIG" == "ubuntu_i9300_defconfig" ]; then
 	DEVICE="m0"
 fi
- 
+
 if [ "$DEFCONFIG" == "lineageos_n7100_defconfig" ]; then
 	DEVICE="t03g"
 fi
 
 if [ -z $TOOLCHAIN ]; then
-	echo "FATAL: No toolchain prefix specified!" 
+	echo "FATAL: No toolchain prefix specified!"
 	echo "*** BUILD FAILED ***"
 	exit 1
 fi
 
 if [ "$CLEAN" = "true" ]; then
 	prepare &>/dev/null
-fi 
+fi
 if [ "$DEFCONFIG" != ".config" ] || [ "$KCONFIG" == "true" ]; then
 	make_config
 fi
