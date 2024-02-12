@@ -1606,7 +1606,7 @@ source kernel/Kconfig.preempt
 
 config HZ_FIXED
 	int
-	default 200 if ARCH_EBSA110 || ARCH_S3C2410 || ARCH_S5P64X0 || \
+	default 0 if ARCH_EBSA110 || ARCH_S3C2410 || ARCH_S5P64X0 || \
 		ARCH_S5PV210 || ARCH_EXYNOS
 	default 20 if MACH_FPGA5410
 	default AT91_TIMER_HZ if ARCH_AT91
