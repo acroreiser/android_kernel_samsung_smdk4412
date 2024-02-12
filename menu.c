@@ -13,11 +13,21 @@
 #include <ncurses.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 #include <sys/reboot.h>
 #include <sys/mount.h>
 #include <sys/syscall.h>
 #include <libevdev/libevdev.h>
 #include <libevdev/libevdev-uinput.h>
+
+/*
+ * Magic values required to use _reboot() system call.
+ */
+
+#define	LINUX_REBOOT_MAGIC1	0xfee1dead
+#define	LINUX_REBOOT_MAGIC2	672274793
+
+#define	LINUX_REBOOT_CMD_RESTART2	0xA1B2C3D4
 
 void draw_menu(WINDOW *menu_win, char **choices, int highlight, int n_choices) {
     int x, y, i;
@@ -44,18 +54,45 @@ void draw_menu(WINDOW *menu_win, char **choices, int highlight, int n_choices) {
 // then run real init
 void mount_root(char *blkdev)
 {
-    mount(blkdev, "/mnt", "ext4", 0, NULL);
+    const char *msg_mount_failed = "menu: failed to mount root!\n";
+    const char *msg_no_init = "menu: no or not executable /sbin/init!\n";
+    int fd;
 
-    umount("/dev");
-    chdir("/mnt");
-    syscall(SYS_pivot_root, ".", "tmp");
-    chroot(".");
-    chdir("/");
-    umount2("/tmp", MNT_DETACH);
+    // Open /dev/kmsg for writing
+    fd = open("/dev/tty0", O_WRONLY);
 
-    mount("devtmpfs", "/dev", "devtmpfs", 0, NULL);
-    execl("/sbin/init", "/sbin/init", NULL);
+    if (!mount(blkdev, "/mnt", "ext4", 0, NULL) ||
+        !mount(blkdev, "/mnt", "f2fs", 0, NULL))
+    {
+        chdir("/mnt");
+        syscall(SYS_pivot_root, ".", "tmp");
+
+        chroot(".");
+        chdir("/");
+
+        if (access("/sbin/init", X_OK) != 0)
+        {
+            write(fd, msg_no_init, strlen(msg_no_init));
+            close(fd);
+            chdir("/tmp");
+            syscall(SYS_pivot_root, ".", "mnt");
+            umount2("/mnt", MNT_DETACH);
+            return;
+        } else
+            close(fd);
+
+        umount2("/tmp/dev", MNT_DETACH);
+        umount2("/tmp", MNT_DETACH);
+
+        mount("devtmpfs", "/dev", "devtmpfs", 0, NULL);
+        execl("/sbin/init", "/sbin/init", NULL);
+    } else
+    {
+        write(fd, msg_mount_failed, strlen(msg_mount_failed));
+        close(fd);
+    }
 }
+
 
 int main() {
     struct libevdev *dev = NULL;
@@ -81,11 +118,14 @@ int main() {
     // Rootfs partitions, must contain an ext4 filesystem
     char emmc[] = "/dev/mmcblk0p12";
     char sdcard[] = "/dev/mmcblk1p1";
+    char usb[] = "/dev/sda1";
 
     // Menu entries
     char *choices[] = {
         "Boot from eMMC",
         "Boot from SD card",
+        "Boot from USB (sda1)",
+        "Reboot to recovery",
         "Power off",
     };
     int n_choices = sizeof(choices) / sizeof(char *);
@@ -141,6 +181,13 @@ int main() {
                     mount_root(sdcard);
                     break;
                 case 3:
+                    mount_root(usb);
+                    break;
+                case 4:
+                    syscall(__NR_reboot, LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2,
+                             LINUX_REBOOT_CMD_RESTART2, "recovery");
+                    break;
+                case 5:
                     reboot(RB_POWER_OFF); // shutdown phone
                     break;
             }
