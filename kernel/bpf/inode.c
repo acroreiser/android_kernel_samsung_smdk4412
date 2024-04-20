@@ -178,11 +178,11 @@ static int bpf_mkobj(struct inode *dir, struct dentry *dentry, umode_t mode,
 }
 
 static struct dentry *
-bpf_lookup(struct inode *dir, struct dentry *dentry, unsigned flags)
+bpf_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
 {
 	if (strchr(dentry->d_name.name, '.'))
 		return ERR_PTR(-EPERM);
-	return simple_lookup(dir, dentry, flags);
+	return simple_lookup(dir, dentry, nd);
 }
 
 static const struct inode_operations bpf_dir_iops = {
@@ -195,7 +195,16 @@ static const struct inode_operations bpf_dir_iops = {
 	.unlink		= simple_unlink,
 };
 
-static int bpf_obj_do_pin(const struct filename *pathname, void *raw,
+
+static void done_path_create(struct path *path, struct dentry *dentry)
+{
+	dput(dentry);
+	mutex_unlock(&path->dentry->d_inode->i_mutex);
+	mnt_drop_write(path->mnt);
+	path_put(path);
+}
+
+static int bpf_obj_do_pin(const char __user *pathname, void *raw,
 			  enum bpf_type type)
 {
 	struct dentry *dentry;
@@ -205,7 +214,7 @@ static int bpf_obj_do_pin(const struct filename *pathname, void *raw,
 	dev_t devt;
 	int ret;
 
-	dentry = kern_path_create(AT_FDCWD, pathname->name, &path, 0);
+	dentry = kern_path_create(AT_FDCWD, pathname, &path, 0);
 	if (IS_ERR(dentry))
 		return PTR_ERR(dentry);
 
@@ -232,14 +241,9 @@ out:
 
 int bpf_obj_pin_user(u32 ufd, const char __user *pathname)
 {
-	struct filename *pname;
 	enum bpf_type type;
 	void *raw;
 	int ret;
-
-	pname = getname(pathname);
-	if (IS_ERR(pname))
-		return PTR_ERR(pname);
 
 	raw = bpf_fd_probe_obj(ufd, &type);
 	if (IS_ERR(raw)) {
@@ -247,15 +251,14 @@ int bpf_obj_pin_user(u32 ufd, const char __user *pathname)
 		goto out;
 	}
 
-	ret = bpf_obj_do_pin(pname, raw, type);
+	ret = bpf_obj_do_pin(pathname, raw, type);
 	if (ret != 0)
 		bpf_any_put(raw, type);
 out:
-	putname(pname);
 	return ret;
 }
 
-static void *bpf_obj_do_get(const struct filename *pathname,
+static void *bpf_obj_do_get(const char __user *pathname,
 			    enum bpf_type *type, int flags)
 {
 	struct inode *inode;
@@ -263,7 +266,7 @@ static void *bpf_obj_do_get(const struct filename *pathname,
 	void *raw;
 	int ret;
 
-	ret = kern_path(pathname->name, LOOKUP_FOLLOW, &path);
+	ret = kern_path(pathname, LOOKUP_FOLLOW, &path);
 	if (ret)
 		return ERR_PTR(ret);
 
@@ -290,7 +293,6 @@ out:
 int bpf_obj_get_user(const char __user *pathname, int flags)
 {
 	enum bpf_type type = BPF_TYPE_UNSPEC;
-	struct filename *pname;
 	int ret = -ENOENT;
 	int f_flags;
 	void *raw;
@@ -299,11 +301,7 @@ int bpf_obj_get_user(const char __user *pathname, int flags)
 	if (f_flags < 0)
 		return f_flags;
 
-	pname = getname(pathname);
-	if (IS_ERR(pname))
-		return PTR_ERR(pname);
-
-	raw = bpf_obj_do_get(pname, &type, f_flags);
+	raw = bpf_obj_do_get(pathname, &type, f_flags);
 	if (IS_ERR(raw)) {
 		ret = PTR_ERR(raw);
 		goto out;
@@ -319,7 +317,6 @@ int bpf_obj_get_user(const char __user *pathname, int flags)
 	if (ret < 0)
 		bpf_any_put(raw, type);
 out:
-	putname(pname);
 	return ret;
 }
 
