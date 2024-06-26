@@ -401,6 +401,11 @@ static inline bool d_need_lookup(struct dentry *dentry)
 
 extern void d_clear_need_lookup(struct dentry *dentry);
 
+static inline bool d_is_negative(const struct dentry *dentry)
+{
+	return (dentry->d_inode == NULL);
+}
+
 extern int sysctl_vfs_cache_pressure;
 
 struct name_snapshot {
