@@ -2623,7 +2623,7 @@ static int cgroup_rename(struct inode *old_dir, struct dentry *old_dentry,
 		return -EEXIST;
 	if (old_dir != new_dir)
 		return -EIO;
-	return simple_rename(old_dir, old_dentry, new_dir, new_dentry);
+	return simple_rename(old_dir, old_dentry, new_dir, new_dentry, 0);
 }
 
 static const struct file_operations cgroup_file_operations = {
