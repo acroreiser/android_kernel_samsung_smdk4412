@@ -293,6 +293,7 @@ out:
 int bpf_obj_get_user(const char __user *pathname, int flags)
 {
 	enum bpf_type type = BPF_TYPE_UNSPEC;
+	char *pname;
 	int ret = -ENOENT;
 	int f_flags;
 	void *raw;
@@ -301,7 +302,11 @@ int bpf_obj_get_user(const char __user *pathname, int flags)
 	if (f_flags < 0)
 		return f_flags;
 
-	raw = bpf_obj_do_get(pathname, &type, f_flags);
+	pname = getname(pathname);
+	if (IS_ERR(pname))
+		return PTR_ERR(pname);
+
+	raw = bpf_obj_do_get(pname, &type, f_flags);
 	if (IS_ERR(raw)) {
 		ret = PTR_ERR(raw);
 		goto out;
@@ -317,6 +322,7 @@ int bpf_obj_get_user(const char __user *pathname, int flags)
 	if (ret < 0)
 		bpf_any_put(raw, type);
 out:
+	putname(pname);
 	return ret;
 }
 
